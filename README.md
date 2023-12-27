@@ -3,7 +3,8 @@ ccload
 
 HTTP(S) Load Tester
 
-[![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
+[Oclif](https://oclif.io)
+[https://github.com/sindresorhus/got](https://github.com/sindresorhus/got)
 
 <!-- toc -->
 * [Commands](#commands)

@@ -1,5 +1,5 @@
 import {Command, Flags} from '@oclif/core'
-import axios from 'axios'
+import got from 'got'
 
 export default class Load extends Command {
   static description = 'load test site'
@@ -79,9 +79,9 @@ export default class Load extends Command {
   }
 
   private async makeHttpRequest(url: string) {
-    const req = await axios.get(url)
+    const req = await got.get(url)
     return {
-      statusCode: req.status,
+      statusCode: req.statusCode,
       timeToFirstByte: 0,
       timeToLastByte: 0,
       totalTimeForRequest: 0,
