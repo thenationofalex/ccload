@@ -1,6 +1,14 @@
 import {Command, Flags} from '@oclif/core'
 import got from 'got'
 
+interface NetworkResponse {
+  startTime: number
+  statusCode: number
+  timeToFirstByte: number
+  timeToLastByte: number
+  totalTimeForRequest: number
+}
+
 export default class Load extends Command {
   static description = 'load test site'
 
@@ -53,7 +61,8 @@ export default class Load extends Command {
     const concurrentRequests = async (url: string) => 
       // eslint-disable-next-line unicorn/new-for-builtins
       Array(requestGroupSize).fill(await this.makeHttpRequest(url))
-    
+
+    // Needs to refactor
     const results = await Promise.all(
       // eslint-disable-next-line unicorn/new-for-builtins
       Array(concurrency).fill(await concurrentRequests(url))
@@ -62,29 +71,65 @@ export default class Load extends Command {
     let successess = 0
     let failures = 0
 
+    let timeToFirstByteMeanCounter = 0
+    let timeToLastByteMeanCounter = 0
+    let timeToLastTotalMeanCounter = 0
+    
+    const timeToFirstByteValues = { Max: 0, Mean: 0, Min: 0 }
+    const timeToLastByteValues = { Max: 0, Mean: 0, Min: 0 }
+    const timeToTotalValues = { Max: 0, Mean: 0, Min: 0 }
+
     for (const group of results) {
-      
-      for (const r of group) {
-      
+      for (const r of group as NetworkResponse[]) {
         if (Number(r.statusCode) >= 200 || Number(r.statusCode) < 300) {
           successess++
-        } else {
+        } else if (Number(r.statusCode) >= 500 || Number(r.statusCode) < 600) {
           failures++
         }
+
+        // Total time
+        timeToTotalValues.Max = timeToTotalValues.Max > r.totalTimeForRequest ? timeToTotalValues.Max : r.totalTimeForRequest
+        timeToTotalValues.Min = timeToTotalValues.Min > r.totalTimeForRequest ? timeToTotalValues.Min : r.totalTimeForRequest
+        timeToLastTotalMeanCounter += r.totalTimeForRequest
+        
+        // Time to first
+        timeToFirstByteValues.Max = timeToFirstByteValues.Max > r.timeToFirstByte ? timeToFirstByteValues.Max : r.timeToFirstByte
+        timeToFirstByteValues.Min = timeToFirstByteValues.Min > r.timeToFirstByte ? timeToFirstByteValues.Min : r.timeToFirstByte
+        timeToFirstByteMeanCounter += r.timeToFirstByte
+        
+        
+        // Time to last
+        timeToLastByteValues.Max = timeToLastByteValues.Max > r.timeToLastByte ? timeToLastByteValues.Max : r.timeToLastByte
+        timeToLastByteValues.Min = timeToLastByteValues.Min > r.timeToLastByte ? timeToLastByteValues.Min : r.timeToLastByte
+        timeToLastByteMeanCounter += r.timeToLastByte
       }
     }
-    
-    console.log('Successes:', successess)
-    console.log('Failures:', failures)
+
+
+    console.log(`
+      Results:
+        Total Requests (2XX).......................: ${successess}
+        Failed Requests (5XX)......................: ${failures}
+        Request/second.............................: **
+
+        Total Request Time (ms) (Min, Max, Mean).....: ${timeToTotalValues.Min}, ${timeToTotalValues.Max}, ${timeToLastTotalMeanCounter / num}
+        Time to First Byte (ms) (Min, Max, Mean).....: ${timeToFirstByteValues.Min}, ${timeToFirstByteValues.Max}, ${timeToFirstByteMeanCounter / num}
+        Time to Last Byte (ms) (Min, Max, Mean)......: ${timeToLastByteValues.Min}, ${timeToLastByteValues.Max}, ${timeToLastByteMeanCounter / num}
+    `)
   }
 
-  private async makeHttpRequest(url: string) {
+  private async makeHttpRequest(url: string): Promise<NetworkResponse> {
+    const startTime = Date.now()
     const req = await got.get(url)
+
+    const { statusCode, timings } = req
+
     return {
-      statusCode: req.statusCode,
-      timeToFirstByte: 0,
-      timeToLastByte: 0,
-      totalTimeForRequest: 0,
+      startTime,
+      statusCode,
+      timeToFirstByte: timings.start - startTime,
+      timeToLastByte: timings.end ? timings.end - startTime : 0,
+      totalTimeForRequest: timings.end ? timings.end - timings.start : 0,
     }
   }
 }
